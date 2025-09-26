@@ -1,42 +1,44 @@
-name: CI/CD Pipeline
+name: test-and-docker
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  test-and-docker:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
 
-      - name: Run tests
-        run: pytest -v
+    - name: Run tests
+      run: pytest -v
 
-      - name: Log in to Docker Hub
-        if: success()
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build Docker image
-        if: success()
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/devops-demo:latest .
+    - name: Build Docker image
+      run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/devops-demo:latest .
 
-      - name: Push Docker image
-        if: success()
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/devops-demo:latest
+    - name: Push Docker image
+      run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/devops-demo:latest
+
+    - name: Run container for validation
+      run: |
+        docker run -d -p 5000:5000 --name demo-app ${{ secrets.DOCKERHUB_USERNAME }}/devops-demo:latest
+        sleep 5  # give container time to start
+        curl -f http://localhost:5000 || (docker logs demo-app && exit 1)
